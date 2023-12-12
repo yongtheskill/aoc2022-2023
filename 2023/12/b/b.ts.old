@@ -1,0 +1,135 @@
+const fs = require('fs');
+
+const f: string = fs.readFileSync('./test.txt').toString();
+const lines = f.split(/\r?\n/);
+
+const startTime = performance.now();
+let sum = 0;
+let i = 0;
+for (const line of lines) {
+  if (i % 1 === 0) console.log(i.toString() + '/1000');
+  i++;
+  sum += processLine(line);
+}
+const endTime = performance.now();
+console.log(sum);
+console.log(`took ${Math.floor(endTime - startTime)}ms`);
+
+let cache: Map<string, number> = new Map();
+function processLine(line: string) {
+  const parts = line.split(' ');
+  // unfold
+  const unfoldedRecordString = new Array(5).fill(parts[0]).join('?');
+  const unfoldedNumbersString = new Array(5).fill(parts[1]).join(',');
+  const record = unfoldedRecordString.split('');
+  const numbers = unfoldedNumbersString.split(',').map((v) => Number(v));
+  return countPossible(
+    record,
+    numbers,
+    numbers.reduce((total: number, n: number) => total + n, 0)
+  );
+}
+
+function countPossible(record: string[], numbers: number[], totalSpringCount: number): number {
+  let firstUnknownId = -1;
+  let unknownCount = 0;
+  let knownSpringCount = 0;
+  for (let i = 0; i < record.length; i++) {
+    const item = record[i];
+    if (item === '?') {
+      unknownCount++;
+      if (firstUnknownId === -1) firstUnknownId = i;
+      continue;
+    }
+    if (item === '#') knownSpringCount++;
+  }
+
+  const validity = possiblyValid(record, numbers);
+  if (validity === false) return 0;
+  if (knownSpringCount > totalSpringCount) return 0;
+  if (unknownCount === 0) return validity !== 'possible' ? 1 : 0;
+
+  if (knownSpringCount === totalSpringCount) {
+    const testRecord = record.map((v: string) => (v === '?' ? '.' : v));
+    return possiblyValid(testRecord, numbers) === true ? 1 : 0;
+  }
+
+  const newRecord = [...record];
+  newRecord[firstUnknownId] = '#';
+  const ifIsSpringCount = countPossible(newRecord, numbers, totalSpringCount);
+  newRecord[firstUnknownId] = '.';
+  const ifIsEmptyCount = countPossible(newRecord, numbers, totalSpringCount);
+  return ifIsSpringCount + ifIsEmptyCount;
+}
+
+function isValid(record: string[], numbers: number[]) {
+  let prevItem = '.';
+  let runLength = 0;
+  let runI = 0;
+  const nRuns = numbers.length;
+  for (const item of record) {
+    if (item === '.') {
+      if (prevItem === '.') continue;
+      // falling edge
+      prevItem = '.';
+      if (numbers[runI] === runLength) {
+        if (runI === nRuns - 1) return true;
+        runLength = 0;
+        runI++;
+        continue;
+      }
+      return false;
+    }
+
+    if (item === '#') {
+      if (prevItem === '#') {
+        runLength++;
+        continue;
+      }
+      // rising edge
+      prevItem = '#';
+      runLength++;
+    }
+  }
+
+  if (numbers[runI] === runLength && runI === nRuns - 1) return true;
+  return false;
+}
+
+function possiblyValid(record: string[], numbers: number[]): boolean | 'possible' {
+  let prevItem = '.';
+  let runLength = 0;
+  let runI = 0;
+  const nRuns = numbers.length;
+  for (const item of record) {
+    if (runLength > numbers[runI]) return false;
+    if (item === '?') {
+      return 'possible';
+    }
+    if (item === '.') {
+      if (prevItem === '.') continue;
+      // falling edge
+      prevItem = '.';
+      if (numbers[runI] === runLength) {
+        if (runI === nRuns - 1) return true;
+        runLength = 0;
+        runI++;
+        continue;
+      }
+      return false;
+    }
+
+    if (item === '#') {
+      if (prevItem === '#') {
+        runLength++;
+        continue;
+      }
+      // rising edge
+      prevItem = '#';
+      runLength++;
+    }
+  }
+
+  if (numbers[runI] === runLength && runI === nRuns - 1) return true;
+  return false;
+}
